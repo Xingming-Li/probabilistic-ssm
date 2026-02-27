@@ -3,19 +3,22 @@ import numpy as np
 class LinearSSM:
     """
     Two-state Linear-Gaussian SSM:
-        x_{t+1} = A * x_t + B * u_t + w_t
-        y_t     = C * x_t + D * u_t + v_t
+        x_{t+1} = A * x_t + B * u_t + w_t, w_t ~ N(0, Q) 
+        y_t     = C * x_t + D * u_t + v_t, v_t ~ N(0, R)
     x_t: [VO₂max VO₂]
     u_t: activity one-hot vector
     y_t: heart rate
     """
     def __init__(self):
-        # A: how states affect next states & how they connect
-        self.A = np.array([[1, 0], [0, 0.995]])
+        # A (state transition): how states affect next states & how state variables connect
+        # Assume exponential decay: x_{t+1} depends on alpha * x_t, where alpha = e ^ (-dt / tau) and dt = 1
+        tau = 200  # Physiological recovery time constant is ~200 minutes
+        alpha = np.exp(-1 / tau)
+        self.A = np.array([[1, 0], [0, alpha]])
         # B: how inputs affect states
         self.B = np.array([[0,  0,  0.001], [-0.001,  0.05, 1.2]])
         # C: how states affect outputs
-        self.C = np.array([[-0.25, 1.2]])  
+        self.C = np.array([[-0.25, 1.2]])          
         # D: how inputs affect outputs 
         self.D = np.array([[70, 90, 125]]) 
         
@@ -38,11 +41,11 @@ class LinearSSM:
         x_current = x_init
         
         for t in range(data_length):            
-            # State equation
             w_t = np.array([self.w1[t], self.w2[t]])
+            # State equation            
             x_next = self.A @ x_current + self.B @ u[t] + w_t
             x[t] = x_next
             # Observation equation
-            y[t] = self.C @ x_current + self.D @ u[t] + self.v[t]     
+            y[t] = self.C @ x_next + self.D @ u[t] + self.v[t]     
             x_current = x_next
         return x, y
